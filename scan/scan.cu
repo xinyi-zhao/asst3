@@ -42,6 +42,26 @@ static inline int nextPow2(int n) {
 // Also, as per the comments in cudaScan(), you can implement an
 // "in-place" scan, since the timing harness makes a copy of input and
 // places it in result
+__global__ void 
+upsweep_kernel(int N, int two_d, int two_dplus1, int* result) {
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < N / two_dplus1) {
+        int offset = index * two_dplus1;
+        result[offset + two_dplus1 - 1] = result[offset + two_d - 1] + result[offset + two_dplus1 - 1];
+    }
+}
+
+__global__ void
+downsweep_kernel(int N, int two_d, int two_dplus1,  int* result) {
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < N / two_dplus1) {
+        int offset = index * two_dplus1;
+        int t = result[offset + two_d - 1];
+        result[offset + two_d - 1] = result[offset + two_dplus1 - 1];
+        result[offset + two_dplus1 - 1] += t;
+    }
+}
+
 void exclusive_scan(int* input, int N, int* result)
 {
 
@@ -54,9 +74,24 @@ void exclusive_scan(int* input, int N, int* result)
     // to CUDA kernel functions (that you must write) to implement the
     // scan.
 
-
+    N = nextPow2(N);
+    int blocks = (N + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+    for(int two_d = 1; two_d <= N/2; two_d*=2) {
+        int two_dplus1 = 2*two_d;
+        blocks = (N / (two_dplus1 * THREADS_PER_BLOCK) + 1);
+        upsweep_kernel<<<blocks, THREADS_PER_BLOCK>>>(N, two_d, two_dplus1,  result);
+        cudaDeviceSynchronize();
+    }
+    cudaMemset(result + N - 1, 0, sizeof(int));
+    cudaDeviceSynchronize();
+    for (int two_d = N/2; two_d >= 1; two_d /= 2) {
+        int two_dplus1 = 2*two_d;
+        blocks = (N / (two_dplus1 * THREADS_PER_BLOCK) + 1);
+        downsweep_kernel<<<blocks, THREADS_PER_BLOCK>>>(N, two_d, two_dplus1,  result);
+        cudaDeviceSynchronize();
+    }
+    cudaDeviceSynchronize();
 }
-
 
 //
 // cudaScan --
@@ -79,9 +114,7 @@ double cudaScan(int* inarray, int* end, int* resultarray)
     // allocated length is a power of 2 for simplicity. This will
     // result in extra work on non-power-of-2 inputs, but it's worth
     // the simplicity of a power of two only solution.
-
-    int rounded_length = nextPow2(end - inarray);
-    
+    int rounded_length = nextPow2(N);
     cudaMalloc((void **)&device_result, sizeof(int) * rounded_length);
     cudaMalloc((void **)&device_input, sizeof(int) * rounded_length);
 
@@ -147,6 +180,28 @@ double cudaScanThrust(int* inarray, int* end, int* resultarray) {
 // indices `i` for which `device_input[i] == device_input[i+1]`.
 //
 // Returns the total number of pairs found
+
+__global__ void 
+binary_difference_kernel(int N, int *device_input, int *binary_difference) {
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index + 1 < N) {
+        if(device_input[index] == device_input[index + 1]) {
+            binary_difference[index] = 1;
+        }
+        else{
+            binary_difference[index] = 0;
+        }
+    }
+}
+
+__global__ void 
+move_position_kernel(int N, int *binary_difference, int *device_output) {
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index + 1< N && binary_difference[index] != binary_difference[index + 1]) {
+        device_output[binary_difference[index]] = index;
+    }
+}
+
 int find_repeats(int* device_input, int length, int* device_output) {
 
     // CS149 TODO:
@@ -160,8 +215,24 @@ int find_repeats(int* device_input, int length, int* device_output) {
     // exclusive_scan function with them. However, your implementation
     // must ensure that the results of find_repeats are correct given
     // the actual array length.
+    int blocks = (length + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+    int *binary_difference;
+    int rounded_length = nextPow2(length);
+    
+    cudaMalloc((void **)&binary_difference, rounded_length * sizeof(int));
+    binary_difference_kernel<<<blocks, THREADS_PER_BLOCK>>>(length, device_input,  binary_difference);
+    cudaDeviceSynchronize();
 
-    return 0; 
+    exclusive_scan(binary_difference, length, binary_difference);
+    cudaDeviceSynchronize();
+
+    move_position_kernel<<<blocks, THREADS_PER_BLOCK>>>(length, binary_difference, device_output);
+    cudaDeviceSynchronize();
+
+    int result;
+    cudaMemcpy(&result, binary_difference + length - 1, sizeof(int), cudaMemcpyDeviceToHost);
+
+    return result;
 }
 
 
