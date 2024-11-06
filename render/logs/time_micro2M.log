@@ -1,0 +1,30 @@
+Rendering to 1024x1024 image
+Loaded scene with 2000000 circles
+---------------------------------------------------------
+Initializing CUDA for CudaRenderer
+Found 1 CUDA devices
+Device 0: NVIDIA GeForce RTX 2080 Ti
+   SMs:        68
+   Global mem: 11009 MB
+   CUDA Cap:   7.5
+---------------------------------------------------------
+WARNING: You're not running on a fast GPU, please consider using NVIDIA GTX 480, 670 or 780.
+---------------------------------------------------------
+
+Running benchmark, 4 frames, beginning at frame 0 ...
+Dumping frames to logs/output_xxx.ppm
+Copying image data from device
+Wrote image file logs/output_0000.ppm
+Copying image data from device
+Wrote image file logs/output_0001.ppm
+Copying image data from device
+Wrote image file logs/output_0002.ppm
+Copying image data from device
+Wrote image file logs/output_0003.ppm
+Clear:    0.4404 ms
+Advance:  0.0007 ms
+Render:   255.5284 ms
+Total:    255.9696 ms
+File IO:  46.5012 ms
+
+Overall:  1.2099 sec (note units are seconds)

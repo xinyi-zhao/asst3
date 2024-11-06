@@ -1,10 +1,10 @@
 ---------------------------------------------------------
 Found 1 CUDA devices
-Device 0: NVIDIA T4G
-   SMs:        40
-   Global mem: 14918 MB
+Device 0: NVIDIA GeForce RTX 2060
+   SMs:        30
+   Global mem: 5924 MB
    CUDA Cap:   7.5
 ---------------------------------------------------------
 Array size: 10000000
-Student GPU time: 8.781 ms
-Find_repeats outputs are correct!
+Student GPU time: 14.103 ms
+Scan outputs are correct!
